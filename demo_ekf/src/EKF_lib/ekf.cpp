@@ -111,9 +111,10 @@ void EKF::predict(const Quaterniond q_eb, const Vector3d w_b, const Vector3d v_e
         x.segment<3>(0+4+3+3) = v_v;
 
 
+        Matrix3d R_vb = get_orientation_q_vb().toRotationMatrix();
         F_mat<<
                              -crossMat(w_b), Matrix3d::Zero(), Matrix3d::Zero(),
-                R_eb*crossMat(get_bias_v()), Matrix3d::Zero(),       -R_ve*R_eb,
+                R_vb*crossMat(get_bias_v()), Matrix3d::Zero(),       -R_ve*R_eb,
                            Matrix3d::Zero(), Matrix3d::Zero(), Matrix3d::Zero();
 
         G_mat<<
