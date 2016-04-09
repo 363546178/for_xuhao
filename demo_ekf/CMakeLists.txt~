@@ -123,3 +123,6 @@ include_directories(
 add_executable(ekf_node src/ekf_vicon.cpp ${MY_EKF_LIB_SOURCES})
 target_link_libraries(ekf_node ${catkin_LIBRARIES} )
 
+add_executable(ekf_node2 src/ekf2_vicon.cpp ${MY_EKF_LIB_SOURCES})
+target_link_libraries(ekf_node2 ${catkin_LIBRARIES} )
+
