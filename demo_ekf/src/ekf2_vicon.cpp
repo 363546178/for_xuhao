@@ -64,9 +64,11 @@ void imu_callback(const nav_msgs::OdometryConstPtr& imu)
     w_b(1) = imu->twist.twist.angular.y;
     w_b(2) = imu->twist.twist.angular.z;
 
+    Vector3d a_e;
+
     // imu propagation
     // ekf predict
-    ekf->predict(q_eb, w_b, v_e, dt);
+    ekf->predict(q_eb, w_b, a_e, dt);
 
     demo_ekf::ekfData ekf_data_out;
 

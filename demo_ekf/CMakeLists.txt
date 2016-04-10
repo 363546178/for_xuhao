@@ -21,7 +21,7 @@ find_package(Eigen REQUIRED)
 
 
 ## find EKF lib
-file(GLOB MY_EKF_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/EKF_lib/*.cpp)
+file(GLOB MY_EKF_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/estimate_lib/*.cpp)
 include_directories("${PROJECT_SOURCE_DIR}/src/EKF_lib")
 
 ## find EKF2 lib
@@ -36,7 +36,6 @@ include_directories("${PROJECT_SOURCE_DIR}/src/EKF2_lib")
 INCLUDE_DIRECTORIES(
    src
    ${Eigen_INCLUDE_DIRS}
-   ${OpenCv_INCLUDE_DIRS}
 )
 
 ## Generate messages in the 'msg' folder
