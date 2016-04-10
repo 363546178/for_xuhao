@@ -18,8 +18,7 @@ void EKF::init_filter(int _n, int _m)
     error_in = VectorXd::Zero(m);
     error_out = VectorXd::Zero(n);
 
-    P_pre = MatrixXd::Identity(n,n);
-    P_post = MatrixXd::Identity(n,n);
+    P_mat = MatrixXd::Identity(n,n);
 
     F_mat = MatrixXd::Identity(n,n);
     Phi_mat = MatrixXd::Identity(n,n);
@@ -125,7 +124,7 @@ void EKF::predict(const Quaterniond q_eb, const Vector3d w_b, const Vector3d v_e
         Phi_mat = MatrixXd::Identity(n,n) + F_mat*dt;
 
         //TODO: for nonlinear model, the predict update maybe not above
-        P_pre = Phi_mat * P_post * Phi_mat.transpose() + G_mat*Q_mat*G_mat.transpose()*dt;
+        P_mat = Phi_mat * P_mat * Phi_mat.transpose() + G_mat*Q_mat*G_mat.transpose()*dt;
     }
 }
 
@@ -145,11 +144,11 @@ void EKF::measrue_update(const Quaterniond q_vb_meas, const Vector3d p_v_meas)
                 Matrix3d::Identity(),     Matrix3d::Zero(), Matrix3d::Zero(),
                     Matrix3d::Zero(), Matrix3d::Identity(), Matrix3d::Zero();
 
-        Kg = P_pre * H_mat.transpose() * (H_mat * P_pre * H_mat.transpose() + R_mat).inverse();
+        Kg = P_mat * H_mat.transpose() * (H_mat * P_mat * H_mat.transpose() + R_mat).inverse();
 
         error_out =  Kg * error_in;
 
-        P_pre = (MatrixXd::Identity(Kg.rows(),H_mat.cols()) - Kg * H_mat) *P_pre;
+        P_mat = (MatrixXd::Identity(Kg.rows(),H_mat.cols()) - Kg * H_mat) *P_mat;
     }
 }
 

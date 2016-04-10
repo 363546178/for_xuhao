@@ -18,8 +18,7 @@ void EKF::init_filter(int _n, int _m)
     error_in = VectorXd::Zero(m);
     error_out = VectorXd::Zero(n);
 
-    P_pre = MatrixXd::Identity(n,n);
-    P_post = MatrixXd::Identity(n,n);
+    P_mat = MatrixXd::Identity(n,n);
 
     F_mat = MatrixXd::Identity(n,n);
     Phi_mat = MatrixXd::Identity(n,n);
@@ -79,9 +78,9 @@ const Vector3d EKF::get_bias_a()
     return Vector3d( x.segment<3>(0+4+3+3) );
 }
 
-const Vector3d EKF::get_accelerate_e()
+const Vector3d EKF::get_accelerate_v()
 {
-    return a_e;
+    return a_v;
 }
 
 void EKF::init_ekf_state(Quaterniond q_vb_init, Vector3d p_v_init)
@@ -100,11 +99,12 @@ void EKF::predict(const Quaterniond q_eb, const Vector3d w_b, const Vector3d a_e
     {
         Matrix3d R_eb = q_eb.toRotationMatrix();
 
-        Vector3d a_e_post = this->get_accelerate_e();
+        Vector3d a_v_post = get_accelerate_v();
+        Vector3d a_v = R_ve*(a_e - R_eb* get_bias_a());
+        Vector3d a_v_calc = 0.5f*( a_v + a_v_post);
 
-        //TODO: change!!!!
-        Vector3d v_v = R_ve*(v_e - R_eb* this->get_bias_v());
-
+        Vector3d v_v_post = get_velocity_v();
+        Vector3d v_v = get_velocity_v() + a_v_calc*dt;
         Vector3d v_v_calc = 0.5f*( v_v + v_v_post);
 
         //TODO: here may be not vary true???
@@ -112,10 +112,10 @@ void EKF::predict(const Quaterniond q_eb, const Vector3d w_b, const Vector3d a_e
         x.segment<4>(0) = (q_ve*q_eb).coeffs();
         // p_v
         x.segment<3>(0+4) += v_v_calc* dt;
-        // bias_v_b
-        x.segment<3>(0+4+3) = this->get_bias_v();
         // v_v
-        x.segment<3>(0+4+3+3) = v_v;
+        x.segment<3>(0+4+3) = v_v;
+        // bias_a_b
+        x.segment<3>(0+4+3+3) = get_bias_a();
 
 
         Matrix3d R_vb = get_orientation_q_vb().toRotationMatrix();
@@ -134,7 +134,7 @@ void EKF::predict(const Quaterniond q_eb, const Vector3d w_b, const Vector3d a_e
         Phi_mat = MatrixXd::Identity(n,n) + F_mat*dt;
 
         //TODO: for nonlinear model, the predict update maybe not above
-        P_pre = Phi_mat * P_post * Phi_mat.transpose() + G_mat*Q_mat*G_mat.transpose()*dt;
+        P_mat = Phi_mat * P_mat * Phi_mat.transpose() + G_mat*Q_mat*G_mat.transpose()*dt;
     }
 }
 
@@ -154,11 +154,11 @@ void EKF::measrue_update(const Quaterniond q_vb_meas, const Vector3d p_v_meas)
                 Matrix3d::Identity(),     Matrix3d::Zero(), Matrix3d::Zero(),
                     Matrix3d::Zero(), Matrix3d::Identity(), Matrix3d::Zero();
 
-        Kg = P_pre * H_mat.transpose() * (H_mat * P_pre * H_mat.transpose() + R_mat).inverse();
+        Kg = P_mat * H_mat.transpose() * (H_mat * P_mat * H_mat.transpose() + R_mat).inverse();
 
         error_out =  Kg * error_in;
 
-        P_pre = (MatrixXd::Identity(Kg.rows(),H_mat.cols()) - Kg * H_mat) *P_pre;
+        P_mat = (MatrixXd::Identity(Kg.rows(),H_mat.cols()) - Kg * H_mat) *P_mat;
     }
 }
 
@@ -169,7 +169,7 @@ void EKF::correct()
     Vector3d delta_v_v(    error_out.segment<3>(0+3+3) );
     Vector3d delta_bias_v( error_out.segment<3>(0+3+3+3) );
 
-    Quaterniond q_vb = this->get_orientation_q_vb();
+    Quaterniond q_vb = get_orientation_q_vb();
     quaternion_correct(q_vb, delta_theta);
 
     x.segment<4>(0) = q_vb.coeffs();

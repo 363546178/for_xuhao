@@ -24,6 +24,10 @@ find_package(Eigen REQUIRED)
 file(GLOB MY_EKF_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/EKF_lib/*.cpp)
 include_directories("${PROJECT_SOURCE_DIR}/src/EKF_lib")
 
+## find EKF2 lib
+file(GLOB MY_EKF2_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/EKF2_lib/*.cpp)
+include_directories("${PROJECT_SOURCE_DIR}/src/EKF2_lib")
+
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -123,6 +127,6 @@ include_directories(
 add_executable(ekf_node src/ekf_vicon.cpp ${MY_EKF_LIB_SOURCES})
 target_link_libraries(ekf_node ${catkin_LIBRARIES} )
 
-add_executable(ekf_node2 src/ekf2_vicon.cpp ${MY_EKF_LIB_SOURCES})
+add_executable(ekf_node2 src/ekf2_vicon.cpp ${MY_EKF2_LIB_SOURCES})
 target_link_libraries(ekf_node2 ${catkin_LIBRARIES} )
 
