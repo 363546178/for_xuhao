@@ -6,18 +6,19 @@
 
 #include "demo_ekf/ekfData.h"
 
-#include "EKF2_lib/ekf2.h"
+#include "estimate2_lib/ekf_estimate2.h"
 
 using namespace std;
 using namespace ros;
+using namespace estimate;
 
 ros::Publisher ekf_pub;
 ros::Subscriber imu_sub;
 ros::Subscriber vicon_sub;
 
-EKF* ekf;
+ekf_estimate* vicon_fusion;
 
-Quaterniond  q_ve;
+Quaterniond q_ve;
 Matrix3d R_ve;
 
 static float dt = 0.01;
@@ -25,67 +26,91 @@ static float dt = 0.01;
 void vicon_callback(const geometry_msgs::TransformStampedConstPtr& vicon)
 {
     //ROS_INFO("GET vicon MSG");
-     Quaterniond q_vb_vicon;
-    q_vb_vicon.w() = vicon->transform.rotation.w;
-    q_vb_vicon.x() = vicon->transform.rotation.x;
-    q_vb_vicon.y() = vicon->transform.rotation.y;
-    q_vb_vicon.z() = vicon->transform.rotation.z;
 
-    Vector3d p_v_vicon;
-    p_v_vicon(0) = vicon->transform.translation.x;
-    p_v_vicon(1) = vicon->transform.translation.y;
-    p_v_vicon(2) = vicon->transform.translation.z;
+    VectorXd vicon_data(7);
+    cout<<vicon_data<<endl;
 
-    if(ekf->is_init == false)
+    //q_vb_vicon
+    vicon_data.segment<4>(0)=
+            Quaterniond(
+                vicon->transform.rotation.w,
+                vicon->transform.rotation.x,
+                vicon->transform.rotation.y,
+                vicon->transform.rotation.z).coeffs();
+
+    // p_v_vicon;
+    vicon_data.segment<3>(0+4)=
+            Vector3d(
+                vicon->transform.translation.x,
+                vicon->transform.translation.y,
+                vicon->transform.translation.z);
+    cout<<"read in data"<<vicon_data<<endl;
+
+    if(vicon_fusion->is_init == false)
     {
-        ekf->init_ekf_state(q_vb_vicon, p_v_vicon);
+        vicon_fusion->is_init = vicon_fusion->init_state(vicon_data);
     }
+    else
+    {
+        vicon_fusion->readin_vicon(vicon_data);
+    }
+    cout<<"get_position_v"<<vicon_fusion->get_position_v()<<endl;
+    cout<<"get_velocity_v"<<vicon_fusion->get_velocity_v()<<endl;
 
-    ekf->measrue_update(q_vb_vicon, p_v_vicon);
-    ekf->correct();
 }
 
 void imu_callback(const nav_msgs::OdometryConstPtr& imu)
 {
     //ROS_INFO("GET imu MSG");
-    Quaterniond q_eb;
-    q_eb.w() = imu->pose.pose.orientation.w;
-    q_eb.x() = imu->pose.pose.orientation.x;
-    q_eb.y() = imu->pose.pose.orientation.y;
-    q_eb.z() = imu->pose.pose.orientation.z;
 
-    Vector3d v_e;
-    v_e(0) = imu->twist.twist.linear.x;
-    v_e(1) = imu->twist.twist.linear.y;
-    v_e(2) = imu->twist.twist.linear.z;
+    VectorXd imu_data(14);
 
-    Vector3d w_b;
-    w_b(0) = imu->twist.twist.angular.x;
-    w_b(1) = imu->twist.twist.angular.y;
-    w_b(2) = imu->twist.twist.angular.z;
+    // q_eb;
+    imu_data.segment<4>(0) =
+            Quaterniond(
+                imu->pose.pose.orientation.w,
+                imu->pose.pose.orientation.x,
+                imu->pose.pose.orientation.y,
+                imu->pose.pose.orientation.z).coeffs();
 
-    Vector3d a_e;
+    // w_b;
+    imu_data.segment<3>(0+4+3) =
+            Vector3d(
+                imu->twist.twist.angular.x,
+                imu->twist.twist.angular.y,
+                imu->twist.twist.angular.z);
 
-    // imu propagation
-    // ekf predict
-    ekf->predict(q_eb, w_b, a_e, dt);
+    //TODO:change to accelerate!!!!
+    // a_e;
+    imu_data.segment<3>(0+4+3) =
+            Vector3d(
+                imu->twist.twist.linear.x,
+                imu->twist.twist.linear.y,
+                imu->twist.twist.linear.z);
+
+    // q_ve
+    imu_data.segment<4>(0+4+3+3) =
+            q_ve.coeffs();
+
+    vicon_fusion->readin_imu(imu_data,dt);
+
 
     demo_ekf::ekfData ekf_data_out;
 
     ekf_data_out.header = imu->header;
 
-    Vector3d p_v = ekf->get_position_v();
+    Vector3d p_v = vicon_fusion->get_position_v();
     ekf_data_out.position_v.x = p_v(0);
     ekf_data_out.position_v.y = p_v(1);
     ekf_data_out.position_v.z = p_v(2);
 
-    Quaterniond q_vb = ekf->get_orientation_q_vb();
+    Quaterniond q_vb = vicon_fusion->get_orientation_q_vb();
     ekf_data_out.q_vb.w = q_vb.w();
     ekf_data_out.q_vb.x = q_vb.x();
     ekf_data_out.q_vb.y = q_vb.y();
     ekf_data_out.q_vb.z = q_vb.z();
 
-    Vector3d v_v = ekf->get_velocity_v();
+    Vector3d v_v = vicon_fusion->get_velocity_v();
     ekf_data_out.velocity_v.x = v_v(0);
     ekf_data_out.velocity_v.y = v_v(1);
     ekf_data_out.velocity_v.z = v_v(2);
@@ -103,9 +128,12 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
 
     //TODO: what is q_ve?
-    R_ve = q_ve.toRotationMatrix();
+    R_ve<< -1 , 0 , 0,
+            0 , 1 , 0,
+            0 , 0 , -1;
+    q_ve = Quaterniond(R_ve);
 
-    ekf = new EKF(12,6,0.1,0.1);
+    vicon_fusion = new ekf_estimate();
 
     vicon_sub = nh.subscribe("/vicon/M100_1/M100_1",10,vicon_callback);
     imu_sub = nh.subscribe("/dji_sdk/odometry",10,imu_callback);

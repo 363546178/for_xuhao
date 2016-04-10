@@ -1,50 +1,59 @@
-#include "ekf_estimate.h"
+#include "ekf_estimate2.h"
 #include "math_uilts.h"
 
 using namespace estimate;
 
-void estimate::F_func(MatrixXd& F,MatrixXd& G,VectorXd& state, const VectorXd& imu,const float dt)
+void estimate::F2_func(MatrixXd& F,MatrixXd& G,VectorXd& state, const VectorXd& imu,const float dt)
 {
     // read in imu data
     Quaterniond q_eb( imu.segment<4>(0));
     Vector3d w_b(     imu.segment<3>(0+4));
-    Vector3d v_e(     imu.segment<3>(0+4+3));
+    Vector3d a_e(     imu.segment<3>(0+4+3));
     Quaterniond q_ve( imu.segment<4>(0+4+3+3));
 
     // propagation
     Matrix3d R_eb = q_eb.toRotationMatrix();
     Matrix3d R_ve = q_ve.toRotationMatrix();
 
-    Vector3d v_v_post = state.segment<3>(0+4+3+3);
-    Vector3d v_v = R_ve*(v_e - R_eb* Vector3d(state.segment<3>(0+4+3)));
+    Vector3d a_v_post = state.segment<3>(0+4+3+3+3);
+    Vector3d a_v = R_ve*(a_e - R_eb* Vector3d(state.segment<3>(0+4+3+3)));
+    Vector3d a_v_calc = 0.5f*( a_v + a_v_post);
+
+    Vector3d v_v_post = state.segment<3>(0+4+3);
+    Vector3d v_v = state.segment<3>(0+4+3) + a_v_calc*dt;
     Vector3d v_v_calc = 0.5f*( v_v + v_v_post);
 
 
     // update Jacobian Matrix
     Matrix3d R_vb = Quaterniond(state.segment<4>(0)).toRotationMatrix();
     F<<
-                                       -crossMat(w_b), Matrix3d::Zero(), Matrix3d::Zero(),
-     R_vb*crossMat(Vector3d(state.segment<3>(0+4+3))), Matrix3d::Zero(),       -R_ve*R_eb,
-                                     Matrix3d::Zero(), Matrix3d::Zero(), Matrix3d::Zero();
+                                       -crossMat(w_b), Matrix3d::Zero(),     Matrix3d::Zero(), Matrix3d::Zero(),
+                                     Matrix3d::Zero(), Matrix3d::Zero(), Matrix3d::Identity(), Matrix3d::Zero(),
+     R_vb*crossMat(Vector3d(state.segment<3>(0+4+3))), Matrix3d::Zero(),     Matrix3d::Zero(),       -R_ve*R_eb,
+                                     Matrix3d::Zero(), Matrix3d::Zero(),     Matrix3d::Zero(), Matrix3d::Zero();
 
     G<<
-        -Matrix3d::Identity(), Matrix3d::Zero(),     Matrix3d::Zero(),
-             Matrix3d::Zero(),            -R_ve,           -R_ve*R_eb,
-             Matrix3d::Zero(), Matrix3d::Zero(), Matrix3d::Identity();
+            -Matrix3d::Identity(), Matrix3d::Zero(), Matrix3d::Zero(),     Matrix3d::Zero(),
+                 Matrix3d::Zero(), Matrix3d::Zero(), Matrix3d::Zero(),     Matrix3d::Zero(),
+                 Matrix3d::Zero(), Matrix3d::Zero(),            -R_ve,           -R_ve*R_eb,
+                 Matrix3d::Zero(), Matrix3d::Zero(), Matrix3d::Zero(), Matrix3d::Identity();
+
 
     // update states
     // q_vb
     state.segment<4>(0) = (q_ve*q_eb).coeffs();
     // p_v
     state.segment<3>(0+4) += v_v_calc* dt;
-    // bias_v_b
-    state.segment<3>(0+4+3) = state.segment<3>(0+4+3);
     // v_v
-    state.segment<3>(0+4+3+3) = v_v;
+    state.segment<3>(0+4+3) = v_v;
+    // bias_a_b
+    state.segment<3>(0+4+3+3) = state.segment<3>(0+4+3+3);
+    // bias_a_v
+    state.segment<3>(0+4+3+3) = a_v;
 
 }
 
-void estimate::H_func( MatrixXd& H,VectorXd& error,const VectorXd& state, const VectorXd& vicon)
+void estimate::H2_func( MatrixXd& H,VectorXd& error,const VectorXd& state, const VectorXd& vicon)
 {
     //read in vicon data
     Quaterniond q_vb_meas( vicon.segment<4>(0));
@@ -65,12 +74,14 @@ void estimate::H_func( MatrixXd& H,VectorXd& error,const VectorXd& state, const 
 
 }
 
-void estimate::C_func(const VectorXd& error, VectorXd& state)
+void estimate::C2_func(const VectorXd& error, VectorXd& state)
 {
+
     // get delta state
     Vector3d delta_theta(  error.segment<3>(0) );
     Vector3d delta_p_v(    error.segment<3>(0+3) );
-    Vector3d delta_bias_v( error.segment<3>(0+3+3) );
+    Vector3d delta_v_v(    error.segment<3>(0+3+3) );
+    Vector3d delta_bias_a( error.segment<3>(0+3+3+3) );
 
     Quaterniond q_vb = Quaterniond(state.segment<4>(0));
     quaternion_correct(q_vb, delta_theta);
@@ -78,8 +89,8 @@ void estimate::C_func(const VectorXd& error, VectorXd& state)
     // state correct
     state.segment<4>(0) = q_vb.coeffs();
     state.segment<3>(0+4) += delta_p_v;
-    state.segment<3>(0+4+3) += delta_bias_v;
-
+    state.segment<3>(0+4+3) += delta_v_v;
+    state.segment<3>(0+4+3+3) += delta_bias_a;
 }
 
 
@@ -88,7 +99,7 @@ void estimate::C_func(const VectorXd& error, VectorXd& state)
 
 ekf_estimate::ekf_estimate()
 {
-    x = VectorXd::Zero(13);
+    x = VectorXd::Zero(16);
 
     init_estimate();
 }
@@ -100,9 +111,10 @@ ekf_estimate::~ekf_estimate()
 
 void ekf_estimate::init_estimate()
 {
-    ekf = new EKF(9,6,
-                  &estimate::F_func,&estimate::H_func,&estimate::C_func,
+    ekf = new EKF(12,6,
+                  &estimate::F2_func,&estimate::H2_func,&estimate::C2_func,
                   0.1,0.1);
+
     cout<<"init done."<<endl;
 }
 
@@ -112,6 +124,7 @@ bool ekf_estimate::init_state(const VectorXd vicon_meas)
     x.segment<3>(0+4) = vicon_meas.segment<3>(0+4);
     x.segment<3>(0+4+3) =  Vector3d::Zero();
     x.segment<3>(0+4+3+3) =  Vector3d::Zero();
+    x.segment<3>(0+4+3+3+3) =  Vector3d::Zero();
 
     return true;
 }

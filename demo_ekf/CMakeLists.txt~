@@ -25,7 +25,7 @@ file(GLOB MY_EKF_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/estimate_lib/*.cpp)
 include_directories("${PROJECT_SOURCE_DIR}/src/EKF_lib")
 
 ## find EKF2 lib
-file(GLOB MY_EKF2_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/EKF2_lib/*.cpp)
+file(GLOB MY_EKF2_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/estimate2_lib/*.cpp)
 include_directories("${PROJECT_SOURCE_DIR}/src/EKF2_lib")
 
 ## Uncomment this if the package has a setup.py. This macro ensures
