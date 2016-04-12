@@ -21,12 +21,17 @@ find_package(Eigen REQUIRED)
 
 
 ## find EKF lib
-file(GLOB MY_EKF_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/estimate_lib/*.cpp)
+file(GLOB EKF_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/EKF_lib/*.cpp)
 include_directories("${PROJECT_SOURCE_DIR}/src/EKF_lib")
 
-## find EKF2 lib
-file(GLOB MY_EKF2_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/estimate2_lib/*.cpp)
-include_directories("${PROJECT_SOURCE_DIR}/src/EKF2_lib")
+## find SRUKF lib
+file(GLOB SRUKF_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/SRUKF_lib/*.cpp)
+include_directories("${PROJECT_SOURCE_DIR}/src/SRUKF_lib")
+
+## find estimate sourece
+file(GLOB MY_estimate_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/estimate_lib/*.cpp)
+file(GLOB MY_estimate2_LIB_SOURCES ${PROJECT_SOURCE_DIR}/src/estimate2_lib/*.cpp)
+
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -123,9 +128,30 @@ include_directories(
 # add_dependencies(demo_ekf ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-add_executable(ekf_node src/ekf_vicon.cpp ${MY_EKF_LIB_SOURCES})
+add_executable(ekf_node
+ src/ekf_vicon.cpp
+ ${MY_estimate_LIB_SOURCES}
+ ${EKF_LIB_SOURCES}
+)
 target_link_libraries(ekf_node ${catkin_LIBRARIES} )
 
-add_executable(ekf_node2 src/ekf2_vicon.cpp ${MY_EKF2_LIB_SOURCES})
+add_executable(ekf_node2
+ src/ekf2_vicon.cpp
+ ${MY_estimate2_LIB_SOURCES}
+ ${EKF_LIB_SOURCES}
+)
 target_link_libraries(ekf_node2 ${catkin_LIBRARIES} )
+
+add_executable(srukf_node
+ src/srukf_vicon.cpp
+ ${SRUKF_LIB_SOURCES}
+)
+target_link_libraries(srukf_node ${catkin_LIBRARIES} )
+
+add_executable(simu_imu src/simu_imu.cpp  )
+target_link_libraries(simu_imu ${catkin_LIBRARIES} )
+
+add_executable(simu_vicon src/simu_vicon.cpp  )
+target_link_libraries(simu_vicon ${catkin_LIBRARIES} )
+
 

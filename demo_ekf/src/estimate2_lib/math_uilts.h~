@@ -2,7 +2,7 @@
 #define _UTILS_H_
 
 #include <Eigen/Dense>
-//#include </usr/local/include/eigen3/Eigen/Dense>
+#include </usr/local/include/eigen3/Eigen/Dense>
 
 using namespace Eigen;
 

@@ -6,17 +6,16 @@
 
 #include "demo_ekf/ekfData.h"
 
-#include "estimate_lib/ekf_estimate.h"
+#include "SRUKF_lib/SRUKF.h"
 
 using namespace std;
 using namespace ros;
-using namespace estimate;
 
 ros::Publisher ekf_pub;
 ros::Subscriber imu_sub;
 ros::Subscriber vicon_sub;
 
-ekf_estimate* vicon_fusion;
+SRUKF* ukf;
 
 Matrix3d R_ve;
 Quaterniond q_ve;
@@ -46,20 +45,6 @@ void vicon_callback(const geometry_msgs::TransformStampedConstPtr& vicon)
                 vicon->transform.translation.z);
     cout<<"vicon read in data"<<vicon_data.transpose()<<endl;
 
-    if(vicon_fusion->is_init == false)
-    {
-        vicon_fusion->is_init = vicon_fusion->init_state(vicon_data);
-        cout<<"init done. "<<endl;
-        cout<<"get_position_v: "<<vicon_fusion->get_position_v().transpose()<<endl;
-    }
-    else
-    {
-        vicon_fusion->readin_vicon(vicon_data);
-
-        cout<<"vicon get_position_v: "<<vicon_fusion->get_position_v().transpose()<<endl;
-        cout<<"vicon get_velocity_v: "<<vicon_fusion->get_velocity_v().transpose()<<endl;
-        cout<<"vicon get_bias_v: "<<vicon_fusion->get_bias_v().transpose()<<endl;
-    }
 
 }
 
@@ -96,12 +81,6 @@ void imu_callback(const nav_msgs::OdometryConstPtr& imu)
             q_ve.coeffs();
     cout<<"IMU read in data "<<endl<<imu_data.transpose()<<endl;
 
-    vicon_fusion->readin_imu(imu_data,dt);
-
-    cout<<"imu get_position_v: "<<vicon_fusion->get_position_v().transpose()<<endl;
-    cout<<"imu get_velocity_v: "<<vicon_fusion->get_velocity_v().transpose()<<endl;
-    cout<<"imu get_bias_v: "<<vicon_fusion->get_bias_v().transpose()<<endl;
-
     // imu propagation
     // ekf predict
 
@@ -109,18 +88,18 @@ void imu_callback(const nav_msgs::OdometryConstPtr& imu)
 
     ekf_data_out.header = imu->header;
 
-    Vector3d p_v = vicon_fusion->get_position_v();
+    Vector3d p_v;
     ekf_data_out.position_v.x = p_v(0);
     ekf_data_out.position_v.y = p_v(1);
     ekf_data_out.position_v.z = p_v(2);
 
-    Quaterniond q_vb = vicon_fusion->get_orientation_q_vb();
+    Quaterniond q_vb;
     ekf_data_out.q_vb.w = q_vb.w();
     ekf_data_out.q_vb.x = q_vb.x();
     ekf_data_out.q_vb.y = q_vb.y();
     ekf_data_out.q_vb.z = q_vb.z();
 
-    Vector3d v_v = vicon_fusion->get_velocity_v();
+    Vector3d v_v ;
     ekf_data_out.velocity_v.x = v_v(0);
     ekf_data_out.velocity_v.y = v_v(1);
     ekf_data_out.velocity_v.z = v_v(2);
@@ -134,7 +113,7 @@ void imu_callback(const nav_msgs::OdometryConstPtr& imu)
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "vicon_ekf_node");
+    ros::init(argc, argv, "vicon_ukf_node");
     ros::NodeHandle nh;
 
     //TODO: what is q_ve?
@@ -144,7 +123,6 @@ int main(int argc, char** argv)
     q_ve = Quaterniond(R_ve);
     //cout<<"q_ve: "<<q_ve.coeffs().transpose()<<endl;
 
-    vicon_fusion = new ekf_estimate();
 
     vicon_sub = nh.subscribe("/vicon/M100_1/M100_1",10,vicon_callback);
     imu_sub = nh.subscribe("/dji_sdk/odometry",10,imu_callback);

@@ -6,7 +6,7 @@
 
 #include <Eigen/Dense>
 
-#include "ekf.h"
+#include <EKF.h>
 
 using namespace std;
 using namespace Eigen;

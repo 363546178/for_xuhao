@@ -5,11 +5,17 @@ using namespace estimate;
 
 void estimate::F_func(MatrixXd& F,MatrixXd& G,VectorXd& state, const VectorXd& imu,const float dt)
 {
+    cout<<"in F function"<<endl;
     // read in imu data
     Quaterniond q_eb( imu.segment<4>(0));
     Vector3d w_b(     imu.segment<3>(0+4));
     Vector3d v_e(     imu.segment<3>(0+4+3));
     Quaterniond q_ve( imu.segment<4>(0+4+3+3));
+
+    cout<<"q_eb: "<<q_ve.coeffs().transpose()<<endl;
+    cout<<"w_b: "<<w_b.transpose()<<endl;
+    cout<<"v_e: "<<v_e.transpose()<<endl;
+    cout<<"q_ve: "<<q_ve.coeffs().transpose()<<endl;
 
     // propagation
     Matrix3d R_eb = q_eb.toRotationMatrix();
@@ -19,6 +25,9 @@ void estimate::F_func(MatrixXd& F,MatrixXd& G,VectorXd& state, const VectorXd& i
     Vector3d v_v = R_ve*(v_e - R_eb* Vector3d(state.segment<3>(0+4+3)));
     Vector3d v_v_calc = 0.5f*( v_v + v_v_post);
 
+    cout<<"v_v_post: "<<v_v_post.transpose()<<endl;
+    cout<<"v_v: "<<v_v.transpose()<<endl;
+    cout<<"v_v_calc: "<<v_v_calc.transpose()<<endl;
 
     // update Jacobian Matrix
     Matrix3d R_vb = Quaterniond(state.segment<4>(0)).toRotationMatrix();
@@ -41,6 +50,8 @@ void estimate::F_func(MatrixXd& F,MatrixXd& G,VectorXd& state, const VectorXd& i
     state.segment<3>(0+4+3) = state.segment<3>(0+4+3);
     // v_v
     state.segment<3>(0+4+3+3) = v_v;
+
+    cout<<"state: "<<state.transpose()<<endl;
 
 }
 
